@@ -1,0 +1,28 @@
+# Ambiente e credenciais — NUNCA versionar
+.env
+*.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Logs
+app/logs/*.log
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

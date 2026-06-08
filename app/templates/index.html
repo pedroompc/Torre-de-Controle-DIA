@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Torre de Controle Logística</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🏗️</span>
+        <div>
+          <h1>Torre de Controle</h1>
+          <p>Logística Inteligente</p>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge badge-oracle">Winthor ✓</span>
+        <span id="badge-fusion" class="badge badge-warn">Fusion (mock)</span>
+        <span id="badge-ia" class="badge badge-ok">IA ✓</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Consulta ── -->
+    <section class="card">
+      <h2>Consultar Pedido</h2>
+      <p class="hint">Digite o número do pedido, NF ou código do cliente.</p>
+      <form id="form-consulta" autocomplete="off">
+        <div class="input-row">
+          <input
+            id="input-consulta"
+            type="text"
+            placeholder="Ex: 123456 ou NF 98765"
+            inputmode="numeric"
+            autofocus
+          />
+          <button type="submit" id="btn-consultar">Consultar</button>
+        </div>
+      </form>
+      <div id="resultado" class="resultado hidden"></div>
+    </section>
+
+    <!-- ── Alertas ── -->
+    <section class="card">
+      <div class="section-header">
+        <h2>Fila de Exceções</h2>
+        <button id="btn-alertas" class="btn-secondary" onclick="carregarAlertas()">Atualizar</button>
+      </div>
+      <div id="alertas-container">
+        <p class="hint">Clique em "Atualizar" para carregar os alertas.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ── Consulta ──────────────────────────────────────────────────────────────
+    document.getElementById('form-consulta').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = document.getElementById('input-consulta').value.trim();
+      if (!q) return;
+
+      const resultado = document.getElementById('resultado');
+      resultado.className = 'resultado loading';
+      resultado.innerHTML = '<span class="spinner"></span> Consultando...';
+
+      try {
+        const r = await fetch(`/consulta?q=${encodeURIComponent(q)}`);
+        const data = await r.json();
+        renderResultado(data, resultado);
+      } catch (err) {
+        resultado.className = 'resultado erro';
+        resultado.innerHTML = `<p>Erro ao consultar: ${err.message}</p>`;
+      }
+    });
+
+    function renderResultado(data, el) {
+      const statusClass = {
+        EM_SEPARACAO: 'status-separacao',
+        FATURADO: 'status-faturado',
+        EM_ROTA: 'status-rota',
+        ENTREGUE: 'status-entregue',
+        DEVOLVIDO: 'status-devolvido',
+        RECUSADO: 'status-recusado',
+        EXCECAO: 'status-excecao',
+        NAO_ENCONTRADO: 'status-nao-encontrado',
+      }[data.status] || '';
+
+      const w = data.winthor || {};
+      const d = data.devolucao || null;
+      const f = data.fusion || null;
+
+      let html = `
+        <div class="status-badge ${statusClass}">${data.descricao}</div>
+        <div class="info-grid">
+      `;
+
+      if (data.numero_pedido) html += infoItem('Pedido', `#${data.numero_pedido}`);
+      if (w.nome_cliente)    html += infoItem('Cliente', w.nome_cliente);
+      if (w.cidade)          html += infoItem('Cidade', `${w.cidade}/${w.uf || ''}`);
+      if (w.nome_rca)        html += infoItem('Vendedor', w.nome_rca);
+      if (w.numero_nota)     html += infoItem('Nota Fiscal', w.numero_nota);
+      if (w.data_faturamento) html += infoItem('Faturado em', fmtDate(w.data_faturamento));
+      if (w.data_saida_carga) html += infoItem('Saída da carga', fmtDate(w.data_saida_carga));
+      if (w.nome_motorista)  html += infoItem('Motorista', w.nome_motorista);
+
+      if (d) {
+        if (d.data_devolucao) html += infoItem('Devolução em', fmtDate(d.data_devolucao));
+        if (d.observacao)     html += infoItem('Motivo', d.observacao);
+        if (d.categoria)      html += infoItem('Categoria', d.categoria.replace(/_/g, ' '));
+        if (d.valor_devolvido) html += infoItem('Valor devolvido', `R$ ${Number(d.valor_devolvido).toLocaleString('pt-BR', {minimumFractionDigits:2})}`);
+      }
+
+      if (f && f.integrado) {
+        if (f.status_entrega)      html += infoItem('Fusion', f.status_entrega);
+        if (f.motivo_ocorrencia)   html += infoItem('Ocorrência', f.motivo_ocorrencia);
+      }
+
+      html += `</div>`;
+
+      if (data.resposta_formatada) {
+        html += `<div class="resposta-ia"><span class="ia-label">✦ Resumo IA</span><p>${data.resposta_formatada.replace(/\n/g, '<br>')}</p></div>`;
+      }
+
+      el.className = 'resultado';
+      el.innerHTML = html;
+    }
+
+    function infoItem(label, value) {
+      return `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${value}</span></div>`;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString('pt-BR');
+    }
+
+    // ── Alertas ───────────────────────────────────────────────────────────────
+    async function carregarAlertas() {
+      const container = document.getElementById('alertas-container');
+      container.innerHTML = '<span class="spinner"></span> Carregando alertas...';
+
+      try {
+        const r = await fetch('/alertas');
+        const alertas = await r.json();
+        renderAlertas(alertas, container);
+      } catch (err) {
+        container.innerHTML = `<p class="erro-text">Erro: ${err.message}</p>`;
+      }
+    }
+
+    function renderAlertas(alertas, el) {
+      if (!alertas.length) {
+        el.innerHTML = '<p class="hint">✓ Nenhuma exceção no momento.</p>';
+        return;
+      }
+
+      const sevClass = { ALTA: 'sev-alta', MEDIA: 'sev-media', BAIXA: 'sev-baixa' };
+
+      let html = `<p class="hint">${alertas.length} alerta(s) ativo(s)</p><div class="alertas-lista">`;
+      for (const a of alertas) {
+        html += `
+          <div class="alerta-item ${sevClass[a.severidade] || ''}">
+            <div class="alerta-header">
+              <span class="alerta-sev">${a.severidade}</span>
+              <span class="alerta-tipo">${a.tipo.replace(/_/g, ' ')}</span>
+            </div>
+            <p class="alerta-detalhe">${a.detalhe}</p>
+            <p class="alerta-acao">→ ${a.acao_sugerida}</p>
+          </div>
+        `;
+      }
+      html += `</div>`;
+      el.innerHTML = html;
+    }
+
+    // Carrega alertas automaticamente ao abrir a página
+    carregarAlertas();
+  </script>
+</body>
+</html>
