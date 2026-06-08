@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 
+import asyncio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -95,3 +96,9 @@ async def startup():
     logger.info("  IA:       %s", "ATIVA" if settings.ai_enabled else "desabilitada")
     logger.info("  WhatsApp: %s", "ATIVO" if settings.whatsapp_enabled else "desabilitado")
     logger.info("=" * 60)
+
+    # Inicia polling do WhatsApp em background
+    if settings.whatsapp_enabled and settings.evolution_api_key:
+        from app.services.polling_service import iniciar_polling
+        asyncio.create_task(iniciar_polling())
+        logger.info("  Polling WhatsApp: ATIVO")

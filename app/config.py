@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Evolution API
     evolution_api_key: str = Field(default="", repr=False)
+    evolution_api_url: str = "http://localhost:8080"
 
     # Alertas
     alerta_horas_sem_fatura: int = 72
