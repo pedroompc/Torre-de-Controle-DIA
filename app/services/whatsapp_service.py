@@ -28,6 +28,7 @@ async def enviar_mensagem(numero: str, mensagem: str) -> dict:
         return {"enviado": False, "detalhe": "URL da API não configurada."}
 
     # Evolution API v2: usa "number" e "text", autenticação via "apikey"
+    # Para grupos, "number" recebe o JID completo (ex: 558199...@g.us)
     payload = {"number": numero, "text": mensagem}
     headers = {
         "apikey": settings.whatsapp_api_token,

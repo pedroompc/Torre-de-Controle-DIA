@@ -105,20 +105,46 @@ def _extrair_mensagem(body: dict) -> tuple[str | None, str | None]:
     Suporta Evolution API v2 e Meta Cloud API.
     """
     # ── Evolution API v2 ──────────────────────────────────────────────────────
-    # Formato: {"event": "messages.upsert", "data": {"key": {"remoteJid": ...}, "message": {...}}}
     try:
         evento = body.get("event", "")
         if "message" in evento:
             data = body["data"]
-            # Ignora mensagens enviadas pelo próprio bot
             if data["key"].get("fromMe"):
                 return None, None
+
             jid = data["key"]["remoteJid"]
-            # Remove sufixo @s.whatsapp.net ou @g.us (grupos — ignorar)
-            if "@g.us" in jid:
-                return None, None
-            numero = jid.replace("@s.whatsapp.net", "").replace("@c.us", "")
             msg = data.get("message", {})
+
+            # ── Grupo: responde só quando o bot for mencionado ────────────────
+            if "@g.us" in jid:
+                ctx = (
+                    msg.get("extendedTextMessage", {}).get("contextInfo", {})
+                    or msg.get("conversation") and {}
+                    or {}
+                )
+                mencionados = ctx.get("mentionedJid", [])
+                texto_grupo = (
+                    msg.get("extendedTextMessage", {}).get("text")
+                    or msg.get("conversation")
+                    or ""
+                ).strip()
+
+                # Só processa se alguém foi mencionado E há um número no texto
+                if not mencionados or not texto_grupo:
+                    return None, None
+
+                # Remove o(s) @menção do texto e extrai só o número do pedido
+                import re
+                texto_limpo = re.sub(r"@\d+", "", texto_grupo).strip()
+                if not texto_limpo:
+                    return None, None
+
+                # Responde no grupo (usa o JID do grupo como destino)
+                numero_grupo = jid  # destino = o grupo
+                return numero_grupo, texto_limpo
+
+            # ── Mensagem individual ────────────────────────────────────────────
+            numero = jid.replace("@s.whatsapp.net", "").replace("@c.us", "")
             texto = (
                 msg.get("conversation")
                 or msg.get("extendedTextMessage", {}).get("text")
