@@ -27,9 +27,10 @@ async def enviar_mensagem(numero: str, mensagem: str) -> dict:
         logger.error("WHATSAPP_API_URL não configurada.")
         return {"enviado": False, "detalhe": "URL da API não configurada."}
 
-    payload = {"to": numero, "message": mensagem}
+    # Evolution API v2: usa "number" e "text", autenticação via "apikey"
+    payload = {"number": numero, "text": mensagem}
     headers = {
-        "Authorization": f"Bearer {settings.whatsapp_api_token}",
+        "apikey": settings.whatsapp_api_token,
         "Content-Type": "application/json",
     }
 

@@ -75,7 +75,36 @@ async def receber_mensagem(request: Request):
 
 
 def _extrair_mensagem(body: dict) -> tuple[str | None, str | None]:
-    """Extrai (numero, texto) do payload WhatsApp Cloud API."""
+    """
+    Extrai (numero, texto) do payload.
+    Suporta Evolution API v2 e Meta Cloud API.
+    """
+    # ── Evolution API v2 ──────────────────────────────────────────────────────
+    # Formato: {"event": "messages.upsert", "data": {"key": {"remoteJid": ...}, "message": {...}}}
+    try:
+        evento = body.get("event", "")
+        if "message" in evento:
+            data = body["data"]
+            # Ignora mensagens enviadas pelo próprio bot
+            if data["key"].get("fromMe"):
+                return None, None
+            jid = data["key"]["remoteJid"]
+            # Remove sufixo @s.whatsapp.net ou @g.us (grupos — ignorar)
+            if "@g.us" in jid:
+                return None, None
+            numero = jid.replace("@s.whatsapp.net", "").replace("@c.us", "")
+            msg = data.get("message", {})
+            texto = (
+                msg.get("conversation")
+                or msg.get("extendedTextMessage", {}).get("text")
+                or msg.get("imageMessage", {}).get("caption")
+                or ""
+            ).strip()
+            return numero, texto or None
+    except (KeyError, TypeError):
+        pass
+
+    # ── Meta Cloud API ────────────────────────────────────────────────────────
     try:
         entry = body["entry"][0]
         change = entry["changes"][0]["value"]
@@ -86,7 +115,7 @@ def _extrair_mensagem(body: dict) -> tuple[str | None, str | None]:
     except (KeyError, IndexError, TypeError):
         pass
 
-    # Fallback para formato genérico
+    # ── Fallback genérico ─────────────────────────────────────────────────────
     numero = body.get("from") or body.get("numero") or body.get("phone")
     texto = body.get("message") or body.get("text") or body.get("body")
     return numero, texto
