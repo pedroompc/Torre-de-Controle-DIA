@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     whatsapp_verify_token: str = Field(default="", repr=False)
     whatsapp_timeout_seconds: int = 30
 
+    # Evolution API
+    evolution_api_key: str = Field(default="", repr=False)
+
     # Alertas
     alerta_horas_sem_fatura: int = 72
     alerta_horas_faturado_sem_carga: int = 24
