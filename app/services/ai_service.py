@@ -143,9 +143,10 @@ def formatar_resposta(status: StatusPedido) -> str:
             elif status.status == StatusUnificado.EM_ROTA:
                 linhas.append(f"Ultimo registro: {data_ev}")
 
-        # Motivo devolução
-        if f.motivo_devolucao:
-            linhas.append(f"Motivo: {f.motivo_devolucao}")
+        # Motivo devolução — usa descrição, fallback para código
+        motivo_fusion = f.desc_devolucao or f.motivo_devolucao
+        if motivo_fusion:
+            linhas.append(f"Motivo: {motivo_fusion}")
 
         # Rota e posição na fila
         if f.nome_rota:
