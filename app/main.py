@@ -97,8 +97,5 @@ async def startup():
     logger.info("  WhatsApp: %s", "ATIVO" if settings.whatsapp_enabled else "desabilitado")
     logger.info("=" * 60)
 
-    # Inicia polling do WhatsApp em background
-    if settings.whatsapp_enabled and settings.evolution_api_key:
-        from app.services.polling_service import iniciar_polling
-        asyncio.create_task(iniciar_polling())
-        logger.info("  Polling WhatsApp: ATIVO")
+    # Polling desativado — webhook funcionando
+    logger.info("  Webhook WhatsApp: ATIVO em /whatsapp/webhook")
