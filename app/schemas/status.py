@@ -51,9 +51,11 @@ class DadosDevolucao(BaseModel):
     nota_devolucao: Optional[int] = None
     data_devolucao: Optional[datetime] = None
     valor_devolvido: Optional[float] = None
+    valor_nota: Optional[float] = None
     cfop: Optional[str] = None
     observacao: Optional[str] = None
-    categoria: Optional[str] = None          # classificação padronizada da IA
+    categoria: Optional[str] = None
+    tipo_devolucao: Optional[str] = None     # TOTAL ou PARCIAL
 
 
 class DadosFusion(BaseModel):

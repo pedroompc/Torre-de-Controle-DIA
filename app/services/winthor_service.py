@@ -156,10 +156,16 @@ FETCH FIRST 5 ROWS ONLY
 _SQL_DEVOLUCAO = f"""
 SELECT
     dev.NUMNOTA                                           AS nota_devolucao,
-    dev.DTENTRADA                                         AS data_devolucao,
+    dev.DTENT                                             AS data_devolucao,
     dev.CODFISCAL                                         AS cfop,
     NVL(td.MOTIVO, dev.OBS)                               AS observacao,
-    NVL(ec.VLDEVOLUCAO, 0)                                AS valor_devolvido
+    NVL(ec.VLDEVOLUCAO, 0)                                AS valor_devolvido,
+    NVL(nf.VLTOTAL, 0)                                    AS valor_nota,
+    CASE
+        WHEN NVL(ec.VLDEVOLUCAO, 0) >= NVL(nf.VLTOTAL, 0) * 0.99
+        THEN 'TOTAL'
+        ELSE 'PARCIAL'
+    END                                                   AS tipo_devolucao
 FROM  PCNFSAID  nf
 JOIN  PCESTCOM  ec  ON ec.NUMTRANSVENDA = nf.NUMTRANSVENDA
 JOIN  PCNFENT   dev ON dev.NUMTRANSENT  = ec.NUMTRANSENT
@@ -169,7 +175,7 @@ WHERE nf.NUMPED = :numero_pedido
   AND dev.CODFISCAL    IN {_CFOPS_DEVOLUCAO}
   AND dev.TIPODESCARGA IN {_TIPOS_DESCARGA}
   AND NVL(dev.OBS, 'X') <> 'NF CANCELADA'
-ORDER BY dev.DTENTRADA DESC
+ORDER BY dev.DTENT DESC
 FETCH FIRST 1 ROWS ONLY
 """
 

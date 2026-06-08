@@ -28,6 +28,11 @@ _EMOJI = {
     StatusUnificado.NAO_ENCONTRADO:    "❓",
 }
 
+_EMOJI_DEVOLUCAO = {
+    "TOTAL":   "❌",
+    "PARCIAL": "⚠️",
+}
+
 # ── Categorias de devolução (mantidas para uso futuro com IA) ─────────────────
 
 CATEGORIAS_DEVOLUCAO = [
@@ -82,7 +87,12 @@ def formatar_resposta(status: StatusPedido) -> str:
     Formata o StatusPedido em texto para WhatsApp.
     Linhas separadas, emojis por status, máximo de informação útil.
     """
-    emoji = _EMOJI.get(status.status, "ℹ️")
+    d = status.devolucao
+    # Ajusta emoji se for devolução parcial
+    tipo_dev = d.tipo_devolucao if d else None
+    emoji = _EMOJI_DEVOLUCAO.get(tipo_dev, _EMOJI.get(status.status, "ℹ️")) \
+            if status.status == StatusUnificado.DEVOLVIDO else \
+            _EMOJI.get(status.status, "ℹ️")
     w = status.winthor
     f = status.fusion
 
@@ -94,8 +104,12 @@ def formatar_resposta(status: StatusPedido) -> str:
 
     linhas = []
 
-    # Cabeçalho
-    linhas.append(f"{emoji} *{status.descricao.upper()}*")
+    # Cabeçalho — diferencia parcial de total
+    if status.status == StatusUnificado.DEVOLVIDO and tipo_dev:
+        titulo = "DEVOLUCAO PARCIAL" if tipo_dev == "PARCIAL" else "DEVOLVIDO"
+        linhas.append(f"{emoji} *{titulo}*")
+    else:
+        linhas.append(f"{emoji} *{status.descricao.upper()}*")
     if w:
         linhas.append(f"Pedido: {w.numero_pedido or '-'}")
         if w.nome_cliente:
@@ -165,6 +179,20 @@ def formatar_resposta(status: StatusPedido) -> str:
             linhas.append(
                 f"Saiu em carga: {w.data_saida_carga.strftime('%d/%m/%Y')}"
             )
+
+    # Devolução Winthor (PCNFENT)
+    if d:
+        if d.data_devolucao:
+            linhas.append(f"Devolucao registrada: {d.data_devolucao.strftime('%d/%m/%Y')}")
+        if d.tipo_devolucao:
+            linhas.append(f"Tipo: {d.tipo_devolucao}")
+        if d.valor_devolvido and d.valor_nota:
+            linhas.append(
+                f"Valor devolvido: R$ {d.valor_devolvido:,.2f} "
+                f"de R$ {d.valor_nota:,.2f}"
+            )
+        if d.observacao:
+            linhas.append(f"Motivo: {d.observacao}")
 
     return "\n".join(linhas)
 
