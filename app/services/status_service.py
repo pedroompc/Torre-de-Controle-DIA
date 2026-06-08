@@ -32,8 +32,13 @@ def calcular_status(
     if winthor is None:
         return StatusUnificado.NAO_ENCONTRADO
 
+    # Devolução Winthor tem prioridade máxima
+    if devolucao is not None:
+        return StatusUnificado.DEVOLVIDO
+
     if fusion and fusion.integrado and fusion.status_entrega:
         s = fusion.status_entrega
+        # Devolução Fusion também tem prioridade sobre entrega
         if s in ("DEVOLVIDO", "DEVOLUCAO_PARCIAL"):
             return StatusUnificado.DEVOLVIDO
         if s == "ENTREGUE":

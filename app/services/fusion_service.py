@@ -60,9 +60,9 @@ WITH status_cliente AS (
             PARTITION BY CARGA_FORMADA_ERP, CLIENTE_CODIGO_ERP
             ORDER BY
                 CASE TIPO
-                    WHEN '7'  THEN 1
-                    WHEN '9'  THEN 2
-                    WHEN '10' THEN 3
+                    WHEN '9'  THEN 1
+                    WHEN '10' THEN 2
+                    WHEN '7'  THEN 3
                     WHEN '8'  THEN 4
                     WHEN '6'  THEN 5
                     WHEN '2'  THEN 6
@@ -120,7 +120,7 @@ SELECT
        AND TIPO IN {relevantes}
      ORDER BY
          CASE TIPO
-             WHEN '7' THEN 1 WHEN '9' THEN 2 WHEN '10' THEN 3
+             WHEN '9' THEN 1 WHEN '10' THEN 2 WHEN '7' THEN 3
              WHEN '8' THEN 4 WHEN '6' THEN 5 WHEN '2'  THEN 6 ELSE 7
          END,
          DATAHORA DESC
