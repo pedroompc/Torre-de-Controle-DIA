@@ -17,6 +17,9 @@ from app.services.whatsapp_service import enviar_mensagem
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 logger = logging.getLogger(__name__)
 
+# Deduplicação — ignora mensagens já processadas
+_ids_processados: set[str] = set()
+
 
 # ── Verificação do webhook (handshake Meta) ───────────────────────────────────
 
@@ -55,8 +58,17 @@ async def receber_mensagem(request: Request):
     numero, texto = _extrair_mensagem(body)
 
     if not numero or not texto:
-        logger.debug("Mensagem recebida sem número ou texto válidos.")
         return {"status": "ignorado"}
+
+    # Deduplicação por ID da mensagem
+    msg_id = _extrair_id(body)
+    if msg_id:
+        if msg_id in _ids_processados:
+            logger.debug("Mensagem duplicada ignorada: %s", msg_id)
+            return {"status": "duplicado"}
+        _ids_processados.add(msg_id)
+        if len(_ids_processados) > 500:
+            _ids_processados.clear()
 
     logger.info("Mensagem recebida de %s: %s", numero, texto)
 
@@ -72,6 +84,19 @@ async def receber_mensagem(request: Request):
 
     await enviar_mensagem(numero, resposta)
     return {"status": "respondido", "para": numero}
+
+
+def _extrair_id(body: dict) -> str | None:
+    """Extrai o ID único da mensagem para deduplicação."""
+    try:
+        return body["data"]["key"]["id"]
+    except (KeyError, TypeError):
+        pass
+    try:
+        return body["entry"][0]["changes"][0]["value"]["messages"][0]["id"]
+    except (KeyError, IndexError, TypeError):
+        pass
+    return None
 
 
 def _extrair_mensagem(body: dict) -> tuple[str | None, str | None]:
