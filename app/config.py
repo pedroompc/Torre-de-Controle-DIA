@@ -44,9 +44,15 @@ class Settings(BaseSettings):
     evolution_api_key: str = Field(default="", repr=False)
     evolution_api_url: str = "http://localhost:8080"
 
-    # Alertas
+    # Alertas (fila de exceções do monitoramento)
     alerta_horas_sem_fatura: int = 72
     alerta_horas_faturado_sem_carga: int = 24
+
+    # Alertas proativos ao vendedor (entrega/devolução)
+    alertas_vendedor_enabled: bool = False
+    alertas_intervalo_segundos: int = 900       # 15 min
+    alertas_lookback_horas: int = 6             # janela de varredura (> intervalo)
+    alertas_sqlite_path: str = "app/data/notificacoes.db"
 
     # Log
     log_level: str = "INFO"

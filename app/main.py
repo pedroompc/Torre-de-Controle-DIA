@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import settings
 from app.database.oracle import check_connection
-from app.routers import consulta, alertas, whatsapp, discovery
+from app.routers import consulta, alertas, whatsapp, discovery, notificacoes
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 log_dir = Path("app/logs")
@@ -58,6 +58,7 @@ app.include_router(consulta.router)
 app.include_router(alertas.router)
 app.include_router(whatsapp.router)
 app.include_router(discovery.router)
+app.include_router(notificacoes.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -95,7 +96,13 @@ async def startup():
     logger.info("  Fusion:   %s", "ATIVO" if settings.fusion_enabled else "desabilitado (mock)")
     logger.info("  IA:       %s", "ATIVA" if settings.ai_enabled else "desabilitada")
     logger.info("  WhatsApp: %s", "ATIVO" if settings.whatsapp_enabled else "desabilitado")
+    logger.info("  Alertas vendedor: %s", "ATIVO" if settings.alertas_vendedor_enabled else "desabilitado")
     logger.info("=" * 60)
 
     # Polling desativado — webhook funcionando
     logger.info("  Webhook WhatsApp: ATIVO em /whatsapp/webhook")
+
+    # Monitor proativo de entregas/devoluções (alertas ao vendedor)
+    if settings.alertas_vendedor_enabled:
+        from app.services.monitor_service import iniciar_monitor
+        asyncio.create_task(iniciar_monitor())

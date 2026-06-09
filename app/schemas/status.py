@@ -35,6 +35,7 @@ class DadosWinthor(BaseModel):
     uf: Optional[str] = None
     codigo_rca: Optional[int] = None
     nome_rca: Optional[str] = None
+    telefone_rca: Optional[str] = None
     data_pedido: Optional[datetime] = None
     data_liberacao: Optional[datetime] = None
     status_pedido: Optional[str] = None       # L, M, F, C, B

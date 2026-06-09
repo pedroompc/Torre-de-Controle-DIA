@@ -42,6 +42,7 @@ SELECT
     cli.ESTENT                                            AS uf,
     ped.CODUSUR                                           AS codigo_rca,
     usu.NOME                                              AS nome_rca,
+    usu.TELCELULAR                                        AS telefone_rca,
     ped.DATA                                              AS data_pedido,
     NVL(ped.DTLIBERA, ped.DATA)                           AS data_liberacao,
     ped.POSICAO                                           AS status_pedido,
@@ -81,6 +82,7 @@ SELECT
     cli.ESTENT                                            AS uf,
     ped.CODUSUR                                           AS codigo_rca,
     usu.NOME                                              AS nome_rca,
+    usu.TELCELULAR                                        AS telefone_rca,
     ped.DATA                                              AS data_pedido,
     NVL(ped.DTLIBERA, ped.DATA)                           AS data_liberacao,
     ped.POSICAO                                           AS status_pedido,
@@ -119,6 +121,7 @@ SELECT
     cli.ESTENT                                            AS uf,
     ped.CODUSUR                                           AS codigo_rca,
     usu.NOME                                              AS nome_rca,
+    usu.TELCELULAR                                        AS telefone_rca,
     ped.DATA                                              AS data_pedido,
     NVL(ped.DTLIBERA, ped.DATA)                           AS data_liberacao,
     ped.POSICAO                                           AS status_pedido,
@@ -259,6 +262,65 @@ def buscar_devolucao(numero_pedido: int) -> Optional[DadosDevolucao]:
         # Query de devolução pendente de mapeamento de colunas corretas no PCNFENT
         logger.warning("Devolução ignorada para pedido %s: %s", numero_pedido, exc)
         return None
+
+
+# ── SQL: pedidos recém-finalizados (entrega/devolução) p/ alertas proativos ───
+# Duas fontes independentes, unidas em Python:
+#   A) Fusion: eventos finalizadores recentes (7=entregue, 9/10=devolução)
+#   B) Winthor: devoluções recentes (PCNFENT → PCESTCOM → PCNFSAID)
+# Retornam apenas o NUMPED candidato; o status real é confirmado depois pelo
+# motor de consulta (_resolver_pedido), mantendo a regra de status num lugar só.
+
+SQL_FINALIZADOS_FUSION = f"""
+SELECT DISTINCT nf.NUMPED AS numero_pedido
+FROM FUSIONT.FUSIONTRAK_INT_EVENTOS ev
+JOIN PCNFSAID nf
+  ON ev.CLIENTE_CODIGO_ERP = TO_CHAR(nf.CODCLI)
+ AND INSTR(',' || REPLACE(ev.CARGA_FORMADA_ERP, ' ', '') || ',',
+           ',' || TO_CHAR(nf.NUMCAR) || ',') > 0
+WHERE ev.TIPO IN ('7', '9', '10')
+  AND ev.DATAHORA >= SYSDATE - :lookback_horas / 24
+  AND nf.DTCANCEL IS NULL
+  AND nf.NUMCAR IS NOT NULL
+  AND nf.NUMPED IS NOT NULL
+  AND nf.CODCLI NOT IN {_CLIENTES_EXCLUIDOS}
+"""
+
+SQL_FINALIZADOS_DEVOLUCAO = f"""
+SELECT DISTINCT nf.NUMPED AS numero_pedido
+FROM  PCNFENT   dev
+JOIN  PCESTCOM  ec  ON ec.NUMTRANSENT   = dev.NUMTRANSENT
+JOIN  PCNFSAID  nf  ON nf.NUMTRANSVENDA = ec.NUMTRANSVENDA
+WHERE dev.DTENT >= SYSDATE - :lookback_horas / 24
+  AND dev.CODFISCAL    IN {_CFOPS_DEVOLUCAO}
+  AND dev.TIPODESCARGA IN {_TIPOS_DESCARGA}
+  AND NVL(dev.OBS, 'X') <> 'NF CANCELADA'
+  AND nf.DTCANCEL IS NULL
+  AND nf.NUMPED IS NOT NULL
+  AND nf.CODCLI NOT IN {_CLIENTES_EXCLUIDOS}
+"""
+
+
+def buscar_pedidos_finalizados(lookback_horas: int) -> list[int]:
+    """
+    Retorna os NUMPED com evento finalizador (entrega/devolução) nas últimas
+    `lookback_horas`. Cada fonte é isolada: se uma falhar, a outra ainda conta.
+    """
+    pedidos: set[int] = set()
+
+    for nome, sql in (
+        ("Fusion", SQL_FINALIZADOS_FUSION),
+        ("devolução Winthor", SQL_FINALIZADOS_DEVOLUCAO),
+    ):
+        try:
+            rows = execute_query(sql, {"lookback_horas": lookback_horas})
+            pedidos.update(
+                int(r["numero_pedido"]) for r in rows if r.get("numero_pedido")
+            )
+        except Exception as exc:
+            logger.error("Falha ao buscar finalizados (%s): %s", nome, exc)
+
+    return sorted(pedidos)
 
 
 def buscar_alertas_sem_fatura(horas_limite: int) -> list[dict]:

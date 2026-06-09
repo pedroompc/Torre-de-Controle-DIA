@@ -18,6 +18,10 @@ build/
 app/logs/*.log
 *.log
 
+# Banco local de notificações (SQLite)
+app/data/
+*.db
+
 # Sistema
 .DS_Store
 Thumbs.db

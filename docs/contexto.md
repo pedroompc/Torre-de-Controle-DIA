@@ -40,10 +40,14 @@ torre-controle/
       ai_service.py           # Claude API — parser + formatação + classificação
       whatsapp_service.py     # envio de mensagens WhatsApp
       alert_service.py        # geração de alertas para o monitoramento
+      notificacao_service.py  # alertas proativos ao vendedor (entrega/devolução)
+      monitor_service.py      # loop em background que dispara a varredura
+    database/local.py         # SQLite local — dedup + log das notificações
     routers/
       consulta.py             # GET /consulta — consulta por pedido/NF/cliente
       alertas.py              # GET /alertas — fila de exceções
       whatsapp.py             # POST /whatsapp/webhook — bot WhatsApp
+      notificacoes.py         # GET /notificacoes — histórico + varredura manual
     templates/index.html      # portal web do vendedor
     static/css/style.css
     logs/
@@ -70,6 +74,8 @@ torre-controle/
 | GET    | `/whatsapp/webhook`         | Verificação do webhook (Meta handshake)    |
 | POST   | `/whatsapp/webhook`         | Recebe mensagens e responde automaticamente|
 | POST   | `/whatsapp/testar`          | Envia mensagem de teste manualmente        |
+| GET    | `/notificacoes`             | Histórico de alertas proativos enviados    |
+| POST   | `/notificacoes/varredura`   | Roda uma varredura de entrega/devolução agora |
 
 ---
 
@@ -115,6 +121,33 @@ Setar `FUSION_ENABLED=true` no `.env` após implementar.
 
 ---
 
+## Alertas Proativos ao Vendedor
+
+Avisa o vendedor automaticamente, via WhatsApp, quando um pedido dele é
+**ENTREGUE** ou **DEVOLVIDO** — sem ele precisar consultar o bot.
+
+**Como funciona:** um loop em background (`monitor_service`) roda a cada
+`ALERTAS_INTERVALO_SEGUNDOS`. A cada ciclo (`notificacao_service.executar_varredura`):
+
+1. `winthor_service.buscar_pedidos_finalizados()` acha pedidos com evento
+   finalizador recente (Fusion tipo 7/9/10 + devoluções recentes no `PCNFENT`).
+2. Para cada candidato, o status real é confirmado por `consulta._resolver_pedido`
+   (mesma regra de status da consulta — não há duplicação de lógica).
+3. Deduplica via SQLite (`app/database/local.py`): não reenvia para o mesmo
+   `(numero_pedido, evento)` já enviado com sucesso; falhas são re-tentadas.
+4. Resolve o telefone do vendedor (`PCUSUARI.TELCELULAR`, normalizado p/ Evolution
+   API). Telefone vazio/inválido → registra falha e segue.
+5. Envia a mensagem e registra o resultado (sucesso/falha) no SQLite.
+
+**Ligar:** `ALERTAS_VENDEDOR_ENABLED=true` no `.env`. Antes disso, validar com
+`POST /notificacoes/varredura` (com `WHATSAPP_ENABLED=false` apenas loga e popula
+o SQLite, sem disparar). Histórico em `GET /notificacoes`.
+
+**Dependência confirmada:** coluna `PCUSUARI.TELCELULAR` (verificar via
+`GET /discovery/colunas/PCUSUARI`) e `DATAHORA` confiável nos eventos Fusion.
+
+---
+
 ## Configuração — Passos para Subir
 
 ```bash
@@ -155,6 +188,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 | Bot WhatsApp (webhook)                  | Implementado     |
 | Alertas: liberado sem fatura            | Implementado     |
 | Alertas: faturado sem carga             | Implementado     |
+| Alertas proativos ao vendedor (entrega/devolução) | Implementado |
 | Integração Fusion                       | **PENDENTE** (mock) |
 | Implantação em servidor interno         | Pendente         |
 | Testes com dados reais                  | Pendente         |
