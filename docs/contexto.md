@@ -135,16 +135,20 @@ Avisa o vendedor automaticamente, via WhatsApp, quando um pedido dele é
    (mesma regra de status da consulta — não há duplicação de lógica).
 3. Deduplica via SQLite (`app/database/local.py`): não reenvia para o mesmo
    `(numero_pedido, evento)` já enviado com sucesso; falhas são re-tentadas.
-4. Resolve o telefone do vendedor (`PCUSUARI.TELCELULAR`, normalizado p/ Evolution
-   API). Telefone vazio/inválido → registra falha e segue.
-5. Envia a mensagem e registra o resultado (sucesso/falha) no SQLite.
+4. Vendedores desligados (nome com prefixo `OF `, ex.: `OF João Marcos`) são
+   pulados — não recebem alerta.
+5. Resolve o telefone do vendedor: `PCUSUARI.TELEFONE1` (preferencial) com
+   fallback em `TELEFONE2`, normalizado p/ Evolution API. O cadastro costuma vir
+   sem DDD, então um DDD padrão (`ALERTAS_DDD_PADRAO`, ex. 81) é assumido quando
+   faltar. Telefone vazio/inválido → registra falha e segue.
+6. Envia a mensagem e registra o resultado (sucesso/falha) no SQLite.
 
 **Ligar:** `ALERTAS_VENDEDOR_ENABLED=true` no `.env`. Antes disso, validar com
 `POST /notificacoes/varredura` (com `WHATSAPP_ENABLED=false` apenas loga e popula
 o SQLite, sem disparar). Histórico em `GET /notificacoes`.
 
-**Dependência confirmada:** coluna `PCUSUARI.TELCELULAR` (verificar via
-`GET /discovery/colunas/PCUSUARI`) e `DATAHORA` confiável nos eventos Fusion.
+**Dependências confirmadas em produção:** telefone em `PCUSUARI.TELEFONE1`/`TELEFONE2`
+(formato inconsistente, muitos sem DDD → daí o DDD padrão) e `DATAHORA` nos eventos Fusion.
 
 ---
 

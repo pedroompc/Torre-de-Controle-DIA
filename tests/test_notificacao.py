@@ -29,9 +29,51 @@ def test_normalizar_telefone_validos(entrada, esperado):
     assert ns.normalizar_telefone(entrada) == esperado
 
 
-@pytest.mark.parametrize("entrada", [None, "", "   ", "123", "99999999", "abc"])
+@pytest.mark.parametrize("entrada", [None, "", "   ", "123", "abc"])
 def test_normalizar_telefone_invalidos(entrada):
     assert ns.normalizar_telefone(entrada) is None
+
+
+def test_normalizar_telefone_sem_ddd_sem_padrao_retorna_none():
+    # 9 dígitos (celular sem DDD) e sem DDD padrão → não dá pra resolver
+    assert ns.normalizar_telefone("986016410") is None
+    assert ns.normalizar_telefone("99922-4980") is None
+
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("986016410",      "5581986016410"),    # 9 dígitos sem DDD → usa DDD padrão
+    ("99922-4980",     "5581999224980"),    # idem com máscara
+    ("9.9555-5843",    "5581995555843"),    # idem com ponto
+    ("9 8535-2663",    "5581985352663"),    # idem com espaço
+])
+def test_normalizar_telefone_aplica_ddd_padrao(entrada, esperado):
+    assert ns.normalizar_telefone(entrada, ddd_padrao="81") == esperado
+
+
+def test_normalizar_telefone_nao_sobrescreve_ddd_existente():
+    # já tem DDD próprio (85) → o DDD padrão NÃO deve ser aplicado
+    assert ns.normalizar_telefone("85 99736-8185", ddd_padrao="81") == "5585997368185"
+
+
+# ── vendedor_ativo (vendedores desligados têm nome prefixado com "OF ") ────────
+
+@pytest.mark.parametrize("nome", [
+    "OF João Marcos",      # desligado
+    "of joão",             # case-insensitive
+    "  OF Maria",          # espaço à esquerda
+    "OF  Pedro",           # espaço duplo
+])
+def test_vendedor_inativo(nome):
+    assert ns.vendedor_ativo(nome) is False
+
+
+@pytest.mark.parametrize("nome", [
+    "João Marcos",         # ativo
+    "OFICINA CENTRAL",     # "OF" sem espaço não conta
+    "OFELIA SOUZA",        # idem
+])
+def test_vendedor_ativo(nome):
+    assert ns.vendedor_ativo(nome) is True
 
 
 # ── montar_mensagem ───────────────────────────────────────────────────────────

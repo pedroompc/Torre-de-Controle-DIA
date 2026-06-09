@@ -30,9 +30,24 @@ _EVENTO_POR_STATUS = {
 }
 
 
+# Vendedores desligados são marcados com o prefixo "OF " no nome (convenção interna)
+_RE_INATIVO = re.compile(r"^\s*OF\s+", re.IGNORECASE)
+
+
 # ── Funções puras ──────────────────────────────────────────────────────────────
 
-def normalizar_telefone(raw: Optional[str]) -> Optional[str]:
+def vendedor_ativo(nome: Optional[str]) -> bool:
+    """
+    False quando o vendedor está desligado. A empresa marca quem saiu com o
+    prefixo "OF " no nome (ex.: "OF João Marcos"). "OFICINA" não conta — o
+    espaço após "OF" é obrigatório.
+    """
+    if not nome:
+        return True
+    return _RE_INATIVO.match(nome) is None
+
+
+def normalizar_telefone(raw: Optional[str], ddd_padrao: Optional[str] = None) -> Optional[str]:
     """
     Normaliza um telefone para o formato da Evolution API: 55 + DDD + número
     (somente dígitos). Retorna None se vazio ou inválido.
@@ -41,6 +56,8 @@ def normalizar_telefone(raw: Optional[str]) -> Optional[str]:
       - 10 dígitos (DDD + fixo)        → prefixa 55
       - 11 dígitos (DDD + celular 9)   → prefixa 55
       - 12/13 dígitos iniciando em 55  → mantém
+      - 8/9 dígitos (sem DDD)          → prefixa `ddd_padrao` + 55, se informado
+                                         (cadastro do Winthor costuma vir sem DDD)
     """
     if not raw:
         return None
@@ -51,6 +68,12 @@ def normalizar_telefone(raw: Optional[str]) -> Optional[str]:
         return "55" + digitos
     if len(digitos) in (12, 13) and digitos.startswith("55"):
         return digitos
+
+    # Sem DDD: só dá pra resolver com um DDD padrão configurado
+    ddd = re.sub(r"\D", "", ddd_padrao) if ddd_padrao else ""
+    if ddd and len(digitos) in (8, 9):
+        return "55" + ddd + digitos
+
     return None
 
 
@@ -119,7 +142,8 @@ async def executar_varredura() -> dict:
     from app.routers.consulta import _resolver_pedido
     from app.services.whatsapp_service import enviar_mensagem
 
-    resumo = {"candidatos": 0, "notificados": 0, "falhas": 0, "pulados": 0}
+    resumo = {"candidatos": 0, "notificados": 0, "falhas": 0,
+              "pulados": 0, "inativos": 0}
 
     try:
         pedidos = winthor_service.buscar_pedidos_finalizados(
@@ -141,13 +165,25 @@ async def executar_varredura() -> dict:
             continue
 
         resumo["candidatos"] += 1
+        w = status.winthor
+
+        # Vendedor desligado (nome prefixado com "OF ") — não notifica
+        if not vendedor_ativo(w.nome_rca if w else None):
+            logger.debug("Pedido %s: vendedor inativo (%s), pulado.",
+                         numped, w.nome_rca if w else None)
+            resumo["inativos"] += 1
+            continue
 
         if local.ja_notificado(numped, evento):
             resumo["pulados"] += 1
             continue
 
-        w = status.winthor
-        telefone = normalizar_telefone(w.telefone_rca if w else None)
+        # TELEFONE1 (preferencial) com fallback no TELEFONE2; DDD padrão p/ cadastros sem DDD
+        ddd = settings.alertas_ddd_padrao
+        telefone = (
+            normalizar_telefone(w.telefone_rca if w else None, ddd)
+            or normalizar_telefone(w.telefone_rca_alt if w else None, ddd)
+        )
         mensagem = montar_mensagem(status)
 
         if not telefone:
