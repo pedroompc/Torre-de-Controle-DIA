@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     alertas_intervalo_segundos: int = 900       # 15 min
     alertas_lookback_horas: int = 6             # janela de varredura (> intervalo)
     alertas_sqlite_path: str = "app/data/notificacoes.db"
-    alertas_ddd_padrao: str = "81"              # DDD assumido quando o cadastro vier sem
+    alertas_grupo_jid: str = ""                 # JID do grupo destino (ex: 1203...@g.us)
 
     # Log
     log_level: str = "INFO"

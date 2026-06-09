@@ -121,10 +121,11 @@ Setar `FUSION_ENABLED=true` no `.env` após implementar.
 
 ---
 
-## Alertas Proativos ao Vendedor
+## Alertas Proativos (grupo de supervisores)
 
-Avisa o vendedor automaticamente, via WhatsApp, quando um pedido dele é
-**ENTREGUE** ou **DEVOLVIDO** — sem ele precisar consultar o bot.
+Avisa automaticamente um **grupo de WhatsApp** (supervisores/gerentes) quando um
+pedido é **ENTREGUE** ou **DEVOLVIDO**. Os supervisores repassam aos seus
+vendedores. Não há disparo para números individuais.
 
 **Como funciona:** um loop em background (`monitor_service`) roda a cada
 `ALERTAS_INTERVALO_SEGUNDOS`. A cada ciclo (`notificacao_service.executar_varredura`):
@@ -135,20 +136,21 @@ Avisa o vendedor automaticamente, via WhatsApp, quando um pedido dele é
    (mesma regra de status da consulta — não há duplicação de lógica).
 3. Deduplica via SQLite (`app/database/local.py`): não reenvia para o mesmo
    `(numero_pedido, evento)` já enviado com sucesso; falhas são re-tentadas.
-4. Vendedores desligados (nome com prefixo `OF `, ex.: `OF João Marcos`) são
-   pulados — não recebem alerta.
-5. Resolve o telefone do vendedor: `PCUSUARI.TELEFONE1` (preferencial) com
-   fallback em `TELEFONE2`, normalizado p/ Evolution API. O cadastro costuma vir
-   sem DDD, então um DDD padrão (`ALERTAS_DDD_PADRAO`, ex. 81) é assumido quando
-   faltar. Telefone vazio/inválido → registra falha e segue.
-6. Envia a mensagem e registra o resultado (sucesso/falha) no SQLite.
+4. Monta a mensagem (formato de painel, nomeando vendedor/cliente/pedido; o
+   prefixo `OF ` de vendedores desligados é removido do nome exibido) e dispara
+   para o grupo `ALERTAS_GRUPO_JID`.
+5. Registra o resultado (sucesso/falha) no SQLite.
 
-**Ligar:** `ALERTAS_VENDEDOR_ENABLED=true` no `.env`. Antes disso, validar com
-`POST /notificacoes/varredura` (com `WHATSAPP_ENABLED=false` apenas loga e popula
-o SQLite, sem disparar). Histórico em `GET /notificacoes`.
+**Ligar:** definir `ALERTAS_GRUPO_JID` e `ALERTAS_VENDEDOR_ENABLED=true` no `.env`.
+Antes disso, validar com `POST /notificacoes/varredura` (com `WHATSAPP_ENABLED=false`
+apenas loga e popula o SQLite, sem disparar). Histórico em `GET /notificacoes`.
 
-**Dependências confirmadas em produção:** telefone em `PCUSUARI.TELEFONE1`/`TELEFONE2`
-(formato inconsistente, muitos sem DDD → daí o DDD padrão) e `DATAHORA` nos eventos Fusion.
+**Como obter o JID do grupo (Evolution API):**
+`GET {EVOLUTION_API_URL}/group/fetchAllGroups/torre-controle?getParticipants=false`
+(header `apikey`). Procure o grupo desejado e copie o campo `id` (termina em `@g.us`).
+
+**Dependência confirmada em produção:** `DATAHORA` nos eventos Fusion (base da
+janela de lookback).
 
 ---
 

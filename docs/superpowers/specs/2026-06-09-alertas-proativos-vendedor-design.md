@@ -3,6 +3,15 @@
 Data: 2026-06-09
 Projeto: torre-controle
 
+> **Atualização (mesma data):** após validar o cadastro real, o destino mudou de
+> "número individual de cada vendedor" para **um único grupo de WhatsApp** de
+> supervisores/gerentes (`ALERTAS_GRUPO_JID`). Consequências: não há mais
+> resolução de telefone (`TELEFONE1/2`, DDD padrão) nem filtro de vendedor
+> inativo — avisa-se de todos os pedidos, apenas removendo o prefixo `OF ` do
+> nome exibido. A coluna `telefone` do SQLite virou `destino`. O restante do
+> desenho (varredura, dedup, reuso de `_resolver_pedido`, loop em background)
+> permanece. A mensagem passou ao formato de painel (vendedor/cliente/pedido).
+
 ## Objetivo
 
 Avisar o vendedor automaticamente, via WhatsApp, quando um pedido de um cliente

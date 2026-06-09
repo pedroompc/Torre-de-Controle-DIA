@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
     evento        TEXT    NOT NULL,
     codigo_rca    INTEGER,
     nome_rca      TEXT,
-    telefone      TEXT,
+    destino       TEXT,
     nome_cliente  TEXT,
     mensagem      TEXT,
     status_envio  TEXT    NOT NULL,
@@ -75,7 +75,7 @@ def registrar_notificacao(
     evento: str,
     codigo_rca: Optional[int],
     nome_rca: Optional[str],
-    telefone: Optional[str],
+    destino: Optional[str],
     nome_cliente: Optional[str],
     mensagem: Optional[str],
     status_envio: str,
@@ -87,11 +87,11 @@ def registrar_notificacao(
         conn.execute(
             """
             INSERT INTO notificacoes_enviadas
-                (numero_pedido, evento, codigo_rca, nome_rca, telefone,
+                (numero_pedido, evento, codigo_rca, nome_rca, destino,
                  nome_cliente, mensagem, status_envio, detalhe)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (numero_pedido, evento, codigo_rca, nome_rca, telefone,
+            (numero_pedido, evento, codigo_rca, nome_rca, destino,
              nome_cliente, mensagem, status_envio, detalhe),
         )
         conn.commit()
