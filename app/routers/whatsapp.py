@@ -54,10 +54,19 @@ async def receber_mensagem(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Payload inválido.")
 
+    # DIAGNÓSTICO TEMPORÁRIO — loga o payload cru pra investigar mensagens de grupo.
+    # Remover depois que o bot no grupo estiver funcionando.
+    logger.info("WEBHOOK RAW: %s", body)
+
     # Extrai número e texto — suporta formato Meta Cloud API
     numero, texto = _extrair_mensagem(body)
 
     if not numero or not texto:
+        logger.info(
+            "Webhook ignorado (sem numero/texto). event=%s remoteJid=%s",
+            body.get("event"),
+            (body.get("data", {}) or {}).get("key", {}).get("remoteJid"),
+        )
         return {"status": "ignorado"}
 
     # Deduplicação por ID da mensagem
