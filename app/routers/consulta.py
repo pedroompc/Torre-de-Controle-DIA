@@ -65,11 +65,48 @@ async def _resolver_pedido(numero_pedido: int) -> StatusPedido:
     return status
 
 
-@router.get("", response_model=StatusPedido, summary="Consulta livre (IA detecta o tipo)")
+def _nao_encontrado() -> StatusPedido:
+    return StatusPedido(
+        status=StatusUnificado.NAO_ENCONTRADO,
+        descricao=STATUS_DESCRICAO[StatusUnificado.NAO_ENCONTRADO],
+    )
+
+
+async def _resolver_por_nota(numero_nota: int) -> StatusPedido:
+    winthor = winthor_service.buscar_por_nota(numero_nota)
+    if not winthor or not winthor.numero_pedido:
+        return _nao_encontrado()
+    return await _resolver_pedido(winthor.numero_pedido)
+
+
+async def _resolver_por_cliente(codigo_cliente: int) -> StatusPedido:
+    pedidos = winthor_service.buscar_por_cliente(codigo_cliente)
+    if not pedidos or not pedidos[0].numero_pedido:
+        return _nao_encontrado()
+    return await _resolver_pedido(pedidos[0].numero_pedido)
+
+
+async def _resolver_ambiguo(valor: int) -> StatusPedido:
+    """
+    Número solto (vendedor não disse se é pedido, NF ou cliente).
+    Tenta em cascata: pedido → NF → cliente. Retorna o primeiro que existir.
+    """
+    status = await _resolver_pedido(valor)
+    if status.status != StatusUnificado.NAO_ENCONTRADO:
+        return status
+
+    status = await _resolver_por_nota(valor)
+    if status.status != StatusUnificado.NAO_ENCONTRADO:
+        return status
+
+    return await _resolver_por_cliente(valor)
+
+
+@router.get("", response_model=StatusPedido, summary="Consulta livre (detecta o tipo)")
 async def consulta_livre(q: str = Query(..., description="Número do pedido, NF ou código do cliente")):
     """
-    Recebe qualquer texto — o parser de IA identifica se é pedido, NF ou cliente
-    e faz a consulta correta automaticamente.
+    Recebe qualquer texto. Se o vendedor disser o tipo ("nf 123", "cliente 45"),
+    respeita. Se vier só um número (ambíguo), tenta pedido → NF → cliente.
     """
     parsed = ai_service.parse_consulta(q)
     tipo = parsed.get("tipo")
@@ -87,27 +124,17 @@ async def consulta_livre(q: str = Query(..., description="Número do pedido, NF 
     except ValueError:
         raise HTTPException(status_code=422, detail=f"Valor '{valor}' não é numérico.")
 
+    # Número solto → cascata pedido → NF → cliente (não dá pra saber o tipo com certeza)
+    if parsed.get("confianca") != "alta":
+        return await _resolver_ambiguo(valor_int)
+
+    # Tipo citado explicitamente pelo vendedor → respeita
     if tipo == "pedido":
         return await _resolver_pedido(valor_int)
-
     if tipo == "nota":
-        winthor = winthor_service.buscar_por_nota(valor_int)
-        if not winthor or not winthor.numero_pedido:
-            return StatusPedido(
-                status=StatusUnificado.NAO_ENCONTRADO,
-                descricao=STATUS_DESCRICAO[StatusUnificado.NAO_ENCONTRADO],
-            )
-        return await _resolver_pedido(winthor.numero_pedido)
-
+        return await _resolver_por_nota(valor_int)
     if tipo == "cliente":
-        pedidos = winthor_service.buscar_por_cliente(valor_int)
-        if not pedidos:
-            return StatusPedido(
-                status=StatusUnificado.NAO_ENCONTRADO,
-                descricao=STATUS_DESCRICAO[StatusUnificado.NAO_ENCONTRADO],
-            )
-        # Retorna o pedido mais recente do cliente
-        return await _resolver_pedido(pedidos[0].numero_pedido)
+        return await _resolver_por_cliente(valor_int)
 
     raise HTTPException(status_code=422, detail=f"Tipo de consulta desconhecido: {tipo}")
 
